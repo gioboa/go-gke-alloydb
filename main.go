@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -30,8 +31,8 @@ func main() {
 	if err := r.SetTrustedProxies(nil); err != nil {
 		log.Fatalf("set trusted proxies: %v", err)
 	}
-	var dbStore *store.Store
 
+	var dbStore *store.Store
 	if cfg.DatabaseURL != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -47,6 +48,7 @@ func main() {
 	r.GET("/healthz/live", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+
 	r.GET("/healthz/ready", func(c *gin.Context) {
 		if dbStore == nil {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -63,9 +65,11 @@ func main() {
 
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+
 	r.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
+
 	r.GET("/db/ping", func(c *gin.Context) {
 		if dbStore == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database not configured"})
@@ -81,11 +85,11 @@ func main() {
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{
-			"message": message,
-		})
+		c.JSON(http.StatusOK, gin.H{"message": message})
 	})
+
 	regions := r.Group("/regions")
+
 	regions.GET("", func(c *gin.Context) {
 		if dbStore == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database not configured"})
@@ -117,6 +121,7 @@ func main() {
 			"regions": regions,
 		})
 	})
+
 	regions.GET("/:id", func(c *gin.Context) {
 		if dbStore == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database not configured"})
@@ -144,6 +149,7 @@ func main() {
 
 		c.JSON(http.StatusOK, region)
 	})
+
 	regions.POST("", func(c *gin.Context) {
 		if dbStore == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database not configured"})
@@ -153,6 +159,12 @@ func main() {
 		var req createRegionRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		req.RegionName = strings.TrimSpace(req.RegionName)
+		if req.RegionName == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "region_name is required"})
 			return
 		}
 
@@ -175,6 +187,7 @@ func main() {
 
 		c.JSON(http.StatusCreated, region)
 	})
+
 	regions.PUT("/:id", func(c *gin.Context) {
 		if dbStore == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database not configured"})
@@ -189,6 +202,12 @@ func main() {
 		var req updateRegionRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		req.RegionName = strings.TrimSpace(req.RegionName)
+		if req.RegionName == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "region_name is required"})
 			return
 		}
 
@@ -208,6 +227,7 @@ func main() {
 
 		c.JSON(http.StatusOK, region)
 	})
+
 	regions.DELETE("/:id", func(c *gin.Context) {
 		if dbStore == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database not configured"})
