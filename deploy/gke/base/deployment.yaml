@@ -22,7 +22,7 @@ spec:
       containers:
         - name: app
           image: app-image:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8080
@@ -31,11 +31,29 @@ spec:
               value: "8080"
             - name: GIN_MODE
               value: release
-            - name: DATABASE_URL
+            - name: DB_HOST
+              value: 127.0.0.1
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_SSLMODE
+              value: disable
+            - name: DB_USER
               valueFrom:
                 secretKeyRef:
                   name: go-gke-alloydb
-                  key: database-url
+                  key: db-user
+                  optional: true
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: go-gke-alloydb
+                  key: db-password
+                  optional: true
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: go-gke-alloydb
+                  key: db-name
                   optional: true
           livenessProbe:
             httpGet:
@@ -69,3 +87,5 @@ spec:
                 - ALL
             readOnlyRootFilesystem: true
             runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532

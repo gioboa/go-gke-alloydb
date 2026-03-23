@@ -17,10 +17,13 @@ Set the image in [kustomization.yaml](/Users/gioboa/Desktop/Egen/go-gke-alloydb/
 kubectl apply -k deploy/gke
 ```
 
-Optional DB secret:
+Optional DB secret. Keep real values out of git:
 
 ```bash
-kubectl apply -f deploy/gke/secret.example.yaml
+kubectl create secret generic go-gke-alloydb \
+  --from-literal=db-user=YOUR_DB_USER \
+  --from-literal=db-password='YOUR_DB_PASSWORD' \
+  --from-literal=db-name=YOUR_DB_NAME
 ```
 
 Get external IP:
@@ -31,8 +34,10 @@ kubectl get svc go-gke-alloydb
 
 Notes:
 - service is `LoadBalancer`, so it creates a public GKE load balancer
-- if `DATABASE_URL` is unset, only `/ping` and health endpoints work
-- if using AlloyDB auth proxy/private IP, point `database-url` at that reachable address
+- if DB env vars are unset, only `/ping` and health endpoints work
+- app supports either `DATABASE_URL` or split vars `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME`
+- if using AlloyDB auth proxy, app talks to `127.0.0.1:5432`
+- [secret.example.yaml](/Users/gioboa/Desktop/Egen/go-gke-alloydb/deploy/gke/secret.example.yaml) is placeholders only
 
 AlloyDB + Workload Identity overlay:
 

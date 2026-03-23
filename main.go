@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -73,6 +74,37 @@ func main() {
 
 		c.JSON(http.StatusOK, gin.H{
 			"message": message,
+		})
+	})
+	r.GET("/regions", func(c *gin.Context) {
+		if dbStore == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database not configured"})
+			return
+		}
+
+		limit := 100
+		if raw := c.Query("limit"); raw != "" {
+			n, err := strconv.Atoi(raw)
+			if err != nil || n < 1 || n > 500 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "limit must be between 1 and 500"})
+				return
+			}
+			limit = n
+		}
+
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
+		regions, err := dbStore.ListRegions(ctx, limit)
+		if err != nil {
+			log.Printf("list regions: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "region query failed"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"count":   len(regions),
+			"regions": regions,
 		})
 	})
 

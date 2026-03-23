@@ -11,12 +11,15 @@ kubectl apply -k deploy/gke/alloydb-auth-proxy
 Edit before applying:
 - [configmap.yaml](/Users/gioboa/Desktop/Egen/go-gke-alloydb/deploy/gke/alloydb-auth-proxy/configmap.yaml): set `ALLOYDB_INSTANCE_URI`
 - [serviceaccount.yaml](/Users/gioboa/Desktop/Egen/go-gke-alloydb/deploy/gke/alloydb-auth-proxy/serviceaccount.yaml): set your IAM service account email
-- [secret.example.yaml](/Users/gioboa/Desktop/Egen/go-gke-alloydb/deploy/gke/secret.example.yaml): set `database-url` to use `127.0.0.1:5432`
+- [secret.example.yaml](/Users/gioboa/Desktop/Egen/go-gke-alloydb/deploy/gke/secret.example.yaml): set `db-user`, `db-password`, `db-name`
 
-Typical `DATABASE_URL`:
+Keep real secrets out of git. Prefer:
 
-```text
-postgres://DB_USER:DB_PASSWORD@127.0.0.1:5432/DB_NAME?sslmode=disable
+```bash
+kubectl create secret generic go-gke-alloydb \
+  --from-literal=db-user=YOUR_DB_USER \
+  --from-literal=db-password='YOUR_DB_PASSWORD' \
+  --from-literal=db-name=YOUR_DB_NAME
 ```
 
 One-time GKE / IAM setup:

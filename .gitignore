@@ -6,6 +6,7 @@
 *.dll
 *.so
 *.dylib
+alloydb-auth-proxy
 
 # Test binaries, coverage
 *.test

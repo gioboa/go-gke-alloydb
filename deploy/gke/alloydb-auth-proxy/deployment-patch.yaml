@@ -15,6 +15,7 @@ spec:
             - 127.0.0.1
             - --port
             - $(ALLOYDB_PROXY_PORT)
+            - --public-ip
             - $(ALLOYDB_INSTANCE_URI)
           envFrom:
             - configMapRef:
