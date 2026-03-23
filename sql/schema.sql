@@ -1,0 +1,1 @@
+-- sqlc schema placeholder for built-in function queries.
