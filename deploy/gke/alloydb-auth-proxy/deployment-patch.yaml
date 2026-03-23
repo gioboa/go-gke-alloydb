@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-gke-alloydb
+spec:
+  template:
+    spec:
+      serviceAccountName: go-gke-alloydb
+      containers:
+        - name: alloydb-auth-proxy
+          image: gcr.io/alloydb-connectors/alloydb-auth-proxy:1.13.8
+          imagePullPolicy: IfNotPresent
+          args:
+            - --address
+            - 127.0.0.1
+            - --port
+            - $(ALLOYDB_PROXY_PORT)
+            - $(ALLOYDB_INSTANCE_URI)
+          envFrom:
+            - configMapRef:
+                name: go-gke-alloydb-alloydb
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true

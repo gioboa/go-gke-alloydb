@@ -17,14 +17,17 @@ func Open(ctx context.Context, databaseURL string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
-		return nil, err
-	}
 	return &Store{
 		Pool:    pool,
 		Queries: db.New(pool),
 	}, nil
+}
+
+func (s *Store) Ping(ctx context.Context) error {
+	if s == nil || s.Pool == nil {
+		return nil
+	}
+	return s.Pool.Ping(ctx)
 }
 
 func (s *Store) Close() {

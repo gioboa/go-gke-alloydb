@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-gke-alloydb-alloydb
+data:
+  ALLOYDB_INSTANCE_URI: projects/PROJECT_ID/locations/us-central1/clusters/CLUSTER_ID/instances/PRIMARY_INSTANCE_ID
+  ALLOYDB_PROXY_PORT: "5432"

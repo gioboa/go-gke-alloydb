@@ -1,0 +1,12 @@
+.git
+.gitignore
+bin
+dist
+coverage.out
+*.test
+*.out
+.DS_Store
+.idea
+.vscode
+README.md
+deploy

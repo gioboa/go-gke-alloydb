@@ -4,6 +4,9 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -14,6 +17,9 @@ import (
 func main() {
 	cfg := config.Load()
 	r := gin.Default()
+	if err := r.SetTrustedProxies(nil); err != nil {
+		log.Fatalf("set trusted proxies: %v", err)
+	}
 	var dbStore *store.Store
 
 	if cfg.DatabaseURL != "" {
@@ -28,6 +34,25 @@ func main() {
 		defer dbStore.Close()
 	}
 
+	r.GET("/healthz/live", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+	r.GET("/healthz/ready", func(c *gin.Context) {
+		if dbStore == nil {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+		defer cancel()
+
+		if err := dbStore.Ping(ctx); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "database unavailable"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
 	r.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
@@ -51,7 +76,26 @@ func main() {
 		})
 	})
 
-	if err := r.Run(":" + cfg.Port); err != nil {
-		log.Fatal(err)
+	server := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           r,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("listen: %v", err)
+		}
+	}()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	<-stop
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Printf("shutdown: %v", err)
 	}
 }
