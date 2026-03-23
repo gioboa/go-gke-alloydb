@@ -15,6 +15,15 @@ import (
 	"github.com/gioboa/go-gke-alloydb/internal/store"
 )
 
+type createRegionRequest struct {
+	RegionID   int64  `json:"region_id" binding:"required,gte=1"`
+	RegionName string `json:"region_name" binding:"required,max=25"`
+}
+
+type updateRegionRequest struct {
+	RegionName string `json:"region_name" binding:"required,max=25"`
+}
+
 func main() {
 	cfg := config.Load()
 	r := gin.Default()
@@ -76,7 +85,8 @@ func main() {
 			"message": message,
 		})
 	})
-	r.GET("/regions", func(c *gin.Context) {
+	regions := r.Group("/regions")
+	regions.GET("", func(c *gin.Context) {
 		if dbStore == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database not configured"})
 			return
@@ -107,6 +117,124 @@ func main() {
 			"regions": regions,
 		})
 	})
+	regions.GET("/:id", func(c *gin.Context) {
+		if dbStore == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database not configured"})
+			return
+		}
+
+		id, ok := parseRegionID(c)
+		if !ok {
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
+		region, err := dbStore.GetRegion(ctx, id)
+		if err != nil {
+			if store.IsNotFound(err) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "region not found"})
+				return
+			}
+			log.Printf("get region %d: %v", id, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "region query failed"})
+			return
+		}
+
+		c.JSON(http.StatusOK, region)
+	})
+	regions.POST("", func(c *gin.Context) {
+		if dbStore == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database not configured"})
+			return
+		}
+
+		var req createRegionRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
+		region, err := dbStore.CreateRegion(ctx, store.Region{
+			ID:   req.RegionID,
+			Name: req.RegionName,
+		})
+		if err != nil {
+			if store.IsUniqueViolation(err) {
+				c.JSON(http.StatusConflict, gin.H{"error": "region already exists"})
+				return
+			}
+			log.Printf("create region %d: %v", req.RegionID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "region create failed"})
+			return
+		}
+
+		c.JSON(http.StatusCreated, region)
+	})
+	regions.PUT("/:id", func(c *gin.Context) {
+		if dbStore == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database not configured"})
+			return
+		}
+
+		id, ok := parseRegionID(c)
+		if !ok {
+			return
+		}
+
+		var req updateRegionRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
+		region, err := dbStore.UpdateRegion(ctx, id, req.RegionName)
+		if err != nil {
+			if store.IsNotFound(err) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "region not found"})
+				return
+			}
+			log.Printf("update region %d: %v", id, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "region update failed"})
+			return
+		}
+
+		c.JSON(http.StatusOK, region)
+	})
+	regions.DELETE("/:id", func(c *gin.Context) {
+		if dbStore == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "database not configured"})
+			return
+		}
+
+		id, ok := parseRegionID(c)
+		if !ok {
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
+		region, err := dbStore.DeleteRegion(ctx, id)
+		if err != nil {
+			if store.IsNotFound(err) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "region not found"})
+				return
+			}
+			log.Printf("delete region %d: %v", id, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "region delete failed"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"deleted": region})
+	})
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -130,4 +258,13 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
+}
+
+func parseRegionID(c *gin.Context) (int64, bool) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid region id"})
+		return 0, false
+	}
+	return id, true
 }

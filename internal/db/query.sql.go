@@ -7,7 +7,27 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const createRegion = `-- name: CreateRegion :one
+INSERT INTO regions (region_id, region_name)
+VALUES ($1, $2)
+RETURNING region_id, region_name
+`
+
+type CreateRegionParams struct {
+	RegionID   int64
+	RegionName pgtype.Text
+}
+
+func (q *Queries) CreateRegion(ctx context.Context, arg CreateRegionParams) (Region, error) {
+	row := q.db.QueryRow(ctx, createRegion, arg.RegionID, arg.RegionName)
+	var i Region
+	err := row.Scan(&i.RegionID, &i.RegionName)
+	return i, err
+}
 
 const databasePing = `-- name: DatabasePing :one
 SELECT 'pong'::text AS message
@@ -18,4 +38,76 @@ func (q *Queries) DatabasePing(ctx context.Context) (string, error) {
 	var message string
 	err := row.Scan(&message)
 	return message, err
+}
+
+const deleteRegion = `-- name: DeleteRegion :one
+DELETE FROM regions
+WHERE region_id = $1
+RETURNING region_id, region_name
+`
+
+func (q *Queries) DeleteRegion(ctx context.Context, regionID int64) (Region, error) {
+	row := q.db.QueryRow(ctx, deleteRegion, regionID)
+	var i Region
+	err := row.Scan(&i.RegionID, &i.RegionName)
+	return i, err
+}
+
+const getRegion = `-- name: GetRegion :one
+SELECT region_id, region_name
+FROM regions
+WHERE region_id = $1
+`
+
+func (q *Queries) GetRegion(ctx context.Context, regionID int64) (Region, error) {
+	row := q.db.QueryRow(ctx, getRegion, regionID)
+	var i Region
+	err := row.Scan(&i.RegionID, &i.RegionName)
+	return i, err
+}
+
+const listRegions = `-- name: ListRegions :many
+SELECT region_id, region_name
+FROM regions
+ORDER BY region_id
+LIMIT $1
+`
+
+func (q *Queries) ListRegions(ctx context.Context, limit int32) ([]Region, error) {
+	rows, err := q.db.Query(ctx, listRegions, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Region
+	for rows.Next() {
+		var i Region
+		if err := rows.Scan(&i.RegionID, &i.RegionName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateRegion = `-- name: UpdateRegion :one
+UPDATE regions
+SET region_name = $2
+WHERE region_id = $1
+RETURNING region_id, region_name
+`
+
+type UpdateRegionParams struct {
+	RegionID   int64
+	RegionName pgtype.Text
+}
+
+func (q *Queries) UpdateRegion(ctx context.Context, arg UpdateRegionParams) (Region, error) {
+	row := q.db.QueryRow(ctx, updateRegion, arg.RegionID, arg.RegionName)
+	var i Region
+	err := row.Scan(&i.RegionID, &i.RegionName)
+	return i, err
 }

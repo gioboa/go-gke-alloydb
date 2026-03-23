@@ -2,15 +2,23 @@ package store
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 
 	"github.com/gioboa/go-gke-alloydb/internal/db"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Store struct {
 	Pool    *pgxpool.Pool
 	Queries *db.Queries
+}
+
+type Region struct {
+	ID   int64  `json:"region_id"`
+	Name string `json:"region_name"`
 }
 
 func Open(ctx context.Context, databaseURL string) (*Store, error) {
@@ -31,40 +39,78 @@ func (s *Store) Ping(ctx context.Context) error {
 	return s.Pool.Ping(ctx)
 }
 
-func (s *Store) ListRegions(ctx context.Context, limit int) ([]map[string]any, error) {
-	rows, err := s.Pool.Query(ctx, `
-		SELECT row_to_json(r)
-		FROM (
-			SELECT *
-			FROM regions
-			ORDER BY region_id
-			LIMIT $1
-		) AS r
-	`, limit)
+func (s *Store) ListRegions(ctx context.Context, limit int) ([]Region, error) {
+	rows, err := s.Queries.ListRegions(ctx, int32(limit))
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	regions := make([]map[string]any, 0, limit)
-	for rows.Next() {
-		var raw []byte
-		if err := rows.Scan(&raw); err != nil {
-			return nil, err
-		}
-
-		var region map[string]any
-		if err := json.Unmarshal(raw, &region); err != nil {
-			return nil, err
-		}
-		regions = append(regions, region)
+	regions := make([]Region, 0, len(rows))
+	for _, row := range rows {
+		regions = append(regions, toRegion(row))
 	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
 	return regions, nil
+}
+
+func (s *Store) GetRegion(ctx context.Context, id int64) (Region, error) {
+	region, err := s.Queries.GetRegion(ctx, id)
+	if err != nil {
+		return Region{}, err
+	}
+	return toRegion(region), nil
+}
+
+func (s *Store) CreateRegion(ctx context.Context, region Region) (Region, error) {
+	created, err := s.Queries.CreateRegion(ctx, db.CreateRegionParams{
+		RegionID:   region.ID,
+		RegionName: textValue(region.Name),
+	})
+	if err != nil {
+		return Region{}, err
+	}
+	return toRegion(created), nil
+}
+
+func (s *Store) UpdateRegion(ctx context.Context, id int64, name string) (Region, error) {
+	region, err := s.Queries.UpdateRegion(ctx, db.UpdateRegionParams{
+		RegionID:   id,
+		RegionName: textValue(name),
+	})
+	if err != nil {
+		return Region{}, err
+	}
+	return toRegion(region), nil
+}
+
+func (s *Store) DeleteRegion(ctx context.Context, id int64) (Region, error) {
+	region, err := s.Queries.DeleteRegion(ctx, id)
+	if err != nil {
+		return Region{}, err
+	}
+	return toRegion(region), nil
+}
+
+func IsNotFound(err error) bool {
+	return errors.Is(err, pgx.ErrNoRows)
+}
+
+func IsUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+func toRegion(region db.Region) Region {
+	return Region{
+		ID:   region.RegionID,
+		Name: region.RegionName.String,
+	}
+}
+
+func textValue(value string) pgtype.Text {
+	return pgtype.Text{
+		String: value,
+		Valid:  true,
+	}
 }
 
 func (s *Store) Close() {
