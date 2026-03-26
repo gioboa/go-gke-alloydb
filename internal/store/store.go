@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gioboa/go-gke-alloydb/internal/db"
+	"github.com/gioboa/go-postgresql/internal/db"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"

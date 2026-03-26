@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gioboa/go-gke-alloydb/internal/config"
-	"github.com/gioboa/go-gke-alloydb/internal/store"
+	"github.com/gioboa/go-postgresql/internal/config"
+	"github.com/gioboa/go-postgresql/internal/store"
 )
 
 type createRegionRequest struct {

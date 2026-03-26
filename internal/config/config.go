@@ -1,8 +1,11 @@
 package config
 
 import (
+	"bufio"
+	"fmt"
 	"net/url"
 	"os"
+	"strings"
 )
 
 type Config struct {
@@ -11,6 +14,8 @@ type Config struct {
 }
 
 func Load() Config {
+	_ = loadDotEnv(".env")
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -23,6 +28,57 @@ func Load() Config {
 		Port:        port,
 		DatabaseURL: databaseURL,
 	}
+}
+
+func loadDotEnv(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		if strings.HasPrefix(line, "export ") {
+			line = strings.TrimSpace(strings.TrimPrefix(line, "export "))
+		}
+
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		if key == "" {
+			continue
+		}
+
+		if _, exists := os.LookupEnv(key); exists {
+			continue
+		}
+
+		value := strings.TrimSpace(parts[1])
+		if len(value) >= 2 {
+			first := value[0]
+			last := value[len(value)-1]
+			if (first == '\'' && last == '\'') || (first == '"' && last == '"') {
+				value = value[1 : len(value)-1]
+			}
+		}
+
+		if err := os.Setenv(key, value); err != nil {
+			return fmt.Errorf("set env %s: %w", key, err)
+		}
+	}
+
+	return scanner.Err()
 }
 
 func databaseURLFromParts() string {

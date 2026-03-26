@@ -1,4 +1,4 @@
-module github.com/gioboa/go-gke-alloydb
+module github.com/gioboa/go-postgresql
 
 go 1.26.1
 
